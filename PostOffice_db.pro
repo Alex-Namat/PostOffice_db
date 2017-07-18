@@ -1,0 +1,34 @@
+#-------------------------------------------------
+#
+# Project created by QtCreator 2016-09-08T16:26:56
+#
+#-------------------------------------------------
+
+QT       += core gui sql
+
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+TARGET = PostOffice_db
+TEMPLATE = app
+
+CONFIG += c++11
+
+SOURCES += main.cpp \
+		mainwindow.cpp \
+        authorizationdialog.cpp \
+        database.cpp \
+        idAttachmentDelegat.cpp \
+        NoEditColumnDelegate.cpp \
+        SqlTypeModel.cpp
+
+HEADERS  += \
+        mainwindow.h \
+        authorizationdialog.h \
+        database.h \
+        SqlTypeModel.h \
+        idAttachmentDelegat.h \
+        NoEditColumnDelegate.h
+
+FORMS    += \
+        mainwindow.ui \
+        authorizationdialog.ui
