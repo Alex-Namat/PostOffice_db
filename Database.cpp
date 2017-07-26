@@ -15,13 +15,12 @@ Database::~Database()
 bool Database::connect()
 {
     AuthorizationDialog *authorizationDlg = new AuthorizationDialog();
-    this->setDatabaseName(QString("Driver={%1};Server={%2};Database={%3}")
-                          .arg(DRIVER_NAME)
-                          .arg(SERVER_NAME)
-                          .arg(DATABASE_NAME));
+    this->setHostName(HOST_NAME);
+    this->setPort(PORT);
+    this->setDatabaseName(DATABASE_NAME);
     if(authorizationDlg->exec() == QDialog::Accepted){
-        this->setUserName(authorizationDlg->getUser());
-        this->setPassword(authorizationDlg->getPassword());
+        this->setUserName("postgres");
+        this->setPassword("admin");
     }
     delete authorizationDlg;
 

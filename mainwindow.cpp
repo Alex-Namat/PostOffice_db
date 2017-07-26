@@ -42,7 +42,7 @@ MainWindow::~MainWindow()
 void MainWindow::setAddresseeModel()
 {
    addresseeModel = new QSqlTableModel(this,*db);
-   addresseeModel->setTable("Адресат");
+   addresseeModel->setTable("\"Адресат\"");
    addresseeModel->setEditStrategy(QSqlTableModel::OnRowChange);
    addresseeModel->select();
 
@@ -57,8 +57,8 @@ void MainWindow::setAddresseeModel()
 void MainWindow::setItemModel()
 {
     itemModel = new QSqlRelationalTableModel(this,*db);
-    itemModel->setTable("Предмет");
-    itemModel->setRelation(1,QSqlRelation("Вложение","ИД_Вложение","ИД_Вложение"));
+    itemModel->setTable("\"Предмет\"");
+    itemModel->setRelation(1,QSqlRelation("\"Вложение\"","\"ИД_Вложение\"","\"ИД_Вложение\""));
     itemModel->setEditStrategy(QSqlTableModel::OnRowChange);
     itemModel->select();
 
@@ -74,8 +74,8 @@ void MainWindow::setItemModel()
 void MainWindow::setAttachmentModel()
 {
     attachmentModel = new QSqlRelationalTableModel(this,*db);
-    attachmentModel->setTable("Вложение");
-    attachmentModel->setRelation(1,QSqlRelation("Адресат","ИД_Адресат","ИД_Адресат"));
+    attachmentModel->setTable("\"Вложение\"");
+    attachmentModel->setRelation(1,QSqlRelation("\"Адресат\"","\"ИД_Адресат\"","\"ИД_Адресат\""));
     attachmentModel->setEditStrategy(QSqlTableModel::OnRowChange);
     attachmentModel->select();
 
@@ -91,10 +91,10 @@ void MainWindow::setAttachmentModel()
 void MainWindow::setMailModel()
 {
     mailModel = new QSqlRelationalTableModel(this,*db);
-    mailModel->setTable("Почтовое_отправление");
-    mailModel->setRelation(1,QSqlRelation("Адресат","ИД_Адресат","ИД_Адресат"));
-    mailModel->setRelation(2,QSqlRelation("Тип_отправления","ИД_Тип","Название"));
-    mailModel->setRelation(3,QSqlRelation("Вложение","ИД_Вложение","ИД_Вложение"));
+    mailModel->setTable("\"Почтовое_отправление\"");
+    mailModel->setRelation(1,QSqlRelation("\"Адресат\"","\"ИД_Адресат\"","\"ИД_Адресат\""));
+    mailModel->setRelation(2,QSqlRelation("\"Тип_отправления\"","\"ИД_Тип\"","\"Название\""));
+    mailModel->setRelation(3,QSqlRelation("\"Вложение\"","\"ИД_Вложение\"","\"ИД_Вложение\""));
     mailModel->setJoinMode(QSqlRelationalTableModel::LeftJoin);
     mailModel->setEditStrategy(QSqlTableModel::OnRowChange);
     mailModel->select();
@@ -112,7 +112,7 @@ void MainWindow::setMailModel()
 void MainWindow::setTypeModel()
 {
     typeModel = new SqlTypeModel(this,*db);
-    typeModel->setTable("Тип_отправления");
+    typeModel->setTable("\"Тип_отправления\"");
     typeModel->setEditStrategy(QSqlTableModel::OnRowChange);
     typeModel->select();
 
@@ -127,8 +127,8 @@ void MainWindow::setTypeModel()
 void MainWindow::setOfficeModel()
 {
     officeModel = new QSqlRelationalTableModel(this,*db);
-    officeModel->setTable("Отделение_Связи");
-    officeModel->setRelation(1,QSqlRelation("Почтовое_отправление","ИД_Отправление","ИД_Отправление"));
+    officeModel->setTable("\"Отделение_Связи\"");
+    officeModel->setRelation(1,QSqlRelation("\"Почтовое_отправление\"","\"ИД_Отправление\"","\"ИД_Отправление\""));
     officeModel->setEditStrategy(QSqlTableModel::OnRowChange);
     officeModel->select();
 
