@@ -47,7 +47,7 @@ void MainWindow::setAddresseeModel()
    addresseeModel->select();
 
    ui->addresseeView->setModel(addresseeModel);
-   ui->addresseeView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->addresseeView));
+   //ui->addresseeView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->addresseeView));
    ui->addresseeView->setEditTriggers(QAbstractItemView::DoubleClicked);
    ui->addresseeView->setSelectionBehavior(QAbstractItemView::SelectRows);
    ui->addresseeView->verticalHeader()->setVisible(false);
@@ -64,7 +64,7 @@ void MainWindow::setItemModel()
 
     ui->itemView->setModel(itemModel);
     ui->itemView->setItemDelegate(new QSqlRelationalDelegate(ui->itemView));
-    ui->itemView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->itemView));
+    //ui->itemView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->itemView));
     ui->itemView->setEditTriggers(QAbstractItemView::DoubleClicked);
     ui->itemView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->itemView->verticalHeader()->setVisible(false);
@@ -81,7 +81,7 @@ void MainWindow::setAttachmentModel()
 
     ui->attachmentView->setModel(attachmentModel);
     ui->attachmentView->setItemDelegate(new QSqlRelationalDelegate(ui->attachmentView));
-    ui->attachmentView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->attachmentView));
+    //ui->attachmentView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->attachmentView));
     ui->attachmentView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->attachmentView->setEditTriggers(QAbstractItemView::DoubleClicked);
     ui->attachmentView->verticalHeader()->setVisible(false);
@@ -101,7 +101,7 @@ void MainWindow::setMailModel()
 
     ui->mailView->setModel(mailModel);
     ui->mailView->setItemDelegate(new QSqlRelationalDelegate(ui->mailView));
-    ui->mailView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->mailView));
+    //ui->mailView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->mailView));
     ui->mailView->setItemDelegateForColumn(3,new IdAttachmentDelegat(ui->mailView));
     ui->mailView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->mailView->setEditTriggers(QAbstractItemView::DoubleClicked);
@@ -117,7 +117,7 @@ void MainWindow::setTypeModel()
     typeModel->select();
 
     ui->typeView->setModel(typeModel);
-    ui->typeView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->typeView));
+    //ui->typeView->setItemDelegateForColumn(0,new NoEditColumnDelegate(ui->typeView));
     ui->typeView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->typeView->setEditTriggers(QAbstractItemView::DoubleClicked);
     ui->typeView->verticalHeader()->setVisible(false);
