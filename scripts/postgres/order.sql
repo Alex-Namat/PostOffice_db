@@ -1,0 +1,1 @@
+﻿SELECT * FROM public.po_view ORDER BY ИД_Отправление
