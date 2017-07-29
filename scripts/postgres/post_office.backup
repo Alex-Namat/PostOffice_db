@@ -1,0 +1,1067 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.3
+-- Dumped by pg_dump version 9.6.3
+
+-- Started on 2017-07-28 21:48:19
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- TOC entry 2240 (class 1262 OID 16384)
+-- Name: post_office; Type: DATABASE; Schema: -; Owner: postgres
+--
+
+CREATE DATABASE post_office WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'Russian_Russia.1251' LC_CTYPE = 'Russian_Russia.1251';
+
+
+ALTER DATABASE post_office OWNER TO postgres;
+
+\connect post_office
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- TOC entry 1 (class 3079 OID 12387)
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- TOC entry 2243 (class 0 OID 0)
+-- Dependencies: 1
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+--
+-- TOC entry 209 (class 1255 OID 16597)
+-- Name: addressee_delete(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION addressee_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+DELETE FROM public."Почтовое_отправление"
+WHERE "ИД_Адресат" = OLD."ИД_Адресат";
+RETURN OLD;
+END
+$$;
+
+
+ALTER FUNCTION public.addressee_delete() OWNER TO postgres;
+
+--
+-- TOC entry 210 (class 1255 OID 16604)
+-- Name: attachment_insert(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION attachment_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+UPDATE public."Вложение"
+SET
+"Общий_Вес" = total_weight(NEW."ИД_Вложение"),
+"Общая_Ценность" = total_cost(NEW."ИД_Вложение")
+WHERE "ИД_Вложение" = NEW."ИД_Вложение";
+RETURN NULL;
+END
+$$;
+
+
+ALTER FUNCTION public.attachment_insert() OWNER TO postgres;
+
+--
+-- TOC entry 217 (class 1255 OID 16619)
+-- Name: attachment_update(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION attachment_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+IF(NEW."ИД_Адресат" <> OLD."ИД_Адресат") THEN
+	IF EXISTS(
+	SELECT "ИД_Адресат"
+	FROM public."Почтовое_отправление"
+	WHERE "ИД_Вложение" = NEW."ИД_Вложение") THEN
+		IF NOT EXISTS(
+		SELECT *
+		FROM public."Вложение"
+		WHERE "ИД_Вложение" = NEW."ИД_Вложение"
+		AND "ИД_Адресат" IN (
+			SELECT "ИД_Адресат"
+			FROM public."Почтовое_отправление"
+			WHERE "ИД_Вложение" = NEW."ИД_Вложение")
+		) THEN
+		RAISE EXCEPTION '"Вложение"."ИД Адресат" != "Почтовое отправление"."ИД Адресат"' USING ERRCODE = '09000';
+		RETURN NULL;
+		END IF;
+	END IF;
+END IF;
+UPDATE public."Почтовое_отправление"
+SET
+"Вес" = NEW."Общий_Вес",
+"Стоимость" = cost((SELECT "ИД_Тип"
+		   FROM public."Почтовое_отправление"
+		   WHERE "ИД_Вложение" = NEW."ИД_Вложение"),
+		   NEW."Общий_Вес",
+		   NEW."Общая_Ценность")
+
+WHERE "ИД_Вложение" = NEW."ИД_Вложение";
+RETURN NULL;
+END;
+$$;
+
+
+ALTER FUNCTION public.attachment_update() OWNER TO postgres;
+
+--
+-- TOC entry 214 (class 1255 OID 16623)
+-- Name: cost(integer, real, money); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION cost(id_type integer, total_weight real, total_cost money) RETURNS money
+    LANGUAGE plpgsql STABLE SECURITY DEFINER LEAKPROOF
+    AS $$
+DECLARE
+cost money;
+weight real;
+type_row "Тип_отправления"%ROWTYPE;
+BEGIN
+SELECT * INTO type_row 
+FROM public."Тип_отправления" 
+WHERE "ИД_Тип" = id_type;
+weight = total_weight - type_row."СтандартВес";
+cost = type_row."СтандартТариф";
+IF (weight > 0) THEN
+	weight = ceiling(weight / type_row."ДопВес");
+	cost = cost + (type_row."ДопТариф" * weight);
+END IF;
+IF (type_row."Ценность" = true) THEN
+	cost = cost + (type_row."ЦенТариф"  * ceiling(total_cost / type_row."ДопЦен"));
+END IF;
+RETURN COALESCE(cost,0::money);
+END
+$$;
+
+
+ALTER FUNCTION public.cost(id_type integer, total_weight real, total_cost money) OWNER TO postgres;
+
+--
+-- TOC entry 219 (class 1255 OID 16748)
+-- Name: delete_type(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION delete_type(id integer) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+DELETE FROM public."Тип_отправления"
+ WHERE "ИД_Тип" = id;
+ END
+ $$;
+
+
+ALTER FUNCTION public.delete_type(id integer) OWNER TO postgres;
+
+--
+-- TOC entry 220 (class 1255 OID 16746)
+-- Name: insert_type(text, real, money, real, money, real, boolean, money, money); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION insert_type(name text DEFAULT ''::text, max_weight real DEFAULT 0, std_tariff money DEFAULT (0)::money, std_weight real DEFAULT 0, add_tariff money DEFAULT (0)::money, add_weight real DEFAULT 0, value boolean DEFAULT false, cost_tariff money DEFAULT (0)::money, add_cost money DEFAULT (0)::money) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+START TRANSACTION;
+IF(std_weight > max_weight) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"СтандартВес" > "МаксВес"';
+	RETURN;
+END IF;
+IF(add_tariff >= max_weight) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"ДопВес" >= "МаксВес"';
+	RETURN;
+END IF;
+IF(value = true AND (cost_tariff = 0::money OR add_cost = 0::money)) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"Ценность" = True, "ЦенТариф" = 0 OR "ДопЦен" = 0 ';
+	RETURN;
+END IF;
+IF(value = false AND (cost_tariff > 0 OR add_cost > 0)) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"Ценность" = False, "ЦенТариф" > 0 OR "ДопЦен" > 0 ';
+	RETURN;
+END IF;
+INSERT INTO public."Тип_отправления"(
+"Название",
+"МаксВес",
+"СтандартТариф",
+"СтандартВес",
+"ДопТариф",
+"ДопВес",
+"Ценность",
+"ЦенТариф",
+"ДопЦен")
+VALUES (
+name,
+max_weight,
+std_tariff,
+std_weight,
+add_tariff,
+add_weight,
+value,
+cost_tariff,
+add_cost
+);
+COMMIT;
+END;
+$$;
+
+
+ALTER FUNCTION public.insert_type(name text, max_weight real, std_tariff money, std_weight real, add_tariff money, add_weight real, value boolean, cost_tariff money, add_cost money) OWNER TO postgres;
+
+--
+-- TOC entry 211 (class 1255 OID 16606)
+-- Name: item_delete(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION item_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+UPDATE public."Вложение"
+SET
+"Общий_Вес" = total_weight(OLD."ИД_Вложение"),
+"Общая_Ценность" = total_cost(OLD."ИД_Вложение")
+WHERE "ИД_Вложение" = OLD."ИД_Вложение";
+RETURN NULL;
+END
+$$;
+
+
+ALTER FUNCTION public.item_delete() OWNER TO postgres;
+
+--
+-- TOC entry 212 (class 1255 OID 16610)
+-- Name: item_insert(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION item_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+UPDATE public."Вложение"
+SET
+"Общий_Вес" = total_weight(NEW."ИД_Вложение"),
+"Общая_Ценность" = total_cost(NEW."ИД_Вложение")
+WHERE "ИД_Вложение" = NEW."ИД_Вложение";
+RETURN NULL;
+END
+$$;
+
+
+ALTER FUNCTION public.item_insert() OWNER TO postgres;
+
+--
+-- TOC entry 213 (class 1255 OID 16608)
+-- Name: item_update(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION item_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+BEGIN
+IF(NEW."ИД_Вложение" <> OLD."ИД_Вложение") THEN
+	UPDATE public."Вложение"
+	SET
+	"Общий_Вес" = total_weight(OLD."ИД_Вложение"),
+	"Общая_Ценность" = total_cost(OLD."ИД_Вложение")
+	WHERE "ИД_Вложение" = OLD."ИД_Вложение";
+END IF;
+UPDATE public."Вложение"
+SET
+"Общий_Вес" = total_weight(NEW."ИД_Вложение"),
+"Общая_Ценность" = total_cost(NEW."ИД_Вложение")
+WHERE "ИД_Вложение" = NEW."ИД_Вложение";
+RETURN NULL;
+END
+$$;
+
+
+ALTER FUNCTION public.item_update() OWNER TO postgres;
+
+--
+-- TOC entry 218 (class 1255 OID 16622)
+-- Name: mail_trigger(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION mail_trigger() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+typeRecord RECORD;
+attachmentRecord RECORD;
+cursorMail REFCURSOR;
+BEGIN
+SELECT a."ИД_Адресат",
+	a."Общий_Вес",
+	a."Общая_Ценность"
+INTO attachmentRecord
+FROM public."Вложение" AS a
+WHERE a."ИД_Вложение" = NEW."ИД_Вложение";
+OPEN cursorMail FOR 
+	SELECT 
+	t."ИД_Тип",
+	t."МаксВес",
+	t."СтандартВес",
+	t."Ценность"
+	FROM public."Тип_отправления" AS t
+	WHERE t."ИД_Тип" = NEW."ИД_Тип";
+FETCH cursorMail INTO typeRecord;
+IF (NEW."ИД_Вложение" IS NOT NULL) THEN
+	IF(typeRecord."Ценность" = true) THEN
+		IF (NEW."ИД_Адресат" <> attachmentRecord."ИД_Адресат") THEN
+			RAISE EXCEPTION '"Почтовое отправление"."ИД Адресат" != "Вложение"."ИД Адресат"' USING ERRCODE = '09000';
+			RETURN NULL;
+		END IF;
+		IF(attachmentRecord."Общий_Вес" <= typeRecord."МаксВес") THEN
+			NEW."Вес" = attachmentRecord."Общий_Вес";
+			NEW."Стоимость" = cost(typeRecord."ИД_Тип", attachmentRecord."Общий_Вес", attachmentRecord."Общая_Ценность");
+		ELSE
+			RAISE EXCEPTION '"Вложение"."Общий вес" > "Тип отправления"."МаксВес"' USING ERRCODE = '09000';
+			RETURN NULL;
+		END IF;
+	ELSE
+		RAISE EXCEPTION '"Тип отправления"."Ценность" - False, "Почтовое отправление"."ИД Вложение" - NOT NULL' USING ERRCODE = '09000';
+		RETURN NULL;
+	END IF;
+ELSE
+	IF(typeRecord."Ценность" = false) THEN
+		IF(NEW."Вес" = 0) THEN
+			NEW."Вес" = typeRecord."СтандартВес";
+		END IF;
+		IF(NEW."Вес" > typeRecord."МаксВес") THEN
+			RAISE EXCEPTION '"Почтовое отправление"."Вес" > "Тип отправления"."МаксВес"' USING ERRCODE = '09000';
+			RETURN NULL;
+		END IF;
+		NEW."Стоимость" = cost(typeRecord."ИД_Тип", NEW."Вес", 0::money);
+	ELSE
+		RAISE EXCEPTION '"Тип отправления"."Ценность" - True, "Почтовое отправление"."ИД Вложение" - NULL' USING ERRCODE = '09000';
+		RETURN NULL;
+	END IF;
+END IF;
+CLOSE cursorMail;
+RETURN NEW;
+END
+$$;
+
+
+ALTER FUNCTION public.mail_trigger() OWNER TO postgres;
+
+--
+-- TOC entry 215 (class 1255 OID 16624)
+-- Name: total_cost(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION total_cost(id_attachment integer) RETURNS money
+    LANGUAGE plpgsql STABLE SECURITY DEFINER LEAKPROOF
+    AS $$
+DECLARE cost money;
+BEGIN
+cost = (SELECT SUM("Ценность" * "Количество")
+	FROM public."Предмет"
+	WHERE "ИД_Вложение" = id_attachment);
+RETURN COALESCE(cost,0::money);
+END
+$$;
+
+
+ALTER FUNCTION public.total_cost(id_attachment integer) OWNER TO postgres;
+
+--
+-- TOC entry 216 (class 1255 OID 16625)
+-- Name: total_weight(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION total_weight(id_attachment integer) RETURNS real
+    LANGUAGE plpgsql STABLE SECURITY DEFINER LEAKPROOF
+    AS $$
+DECLARE weight real;
+BEGIN
+weight = (SELECT SUM("Вес" * "Количество")
+	FROM public."Предмет"
+	WHERE "ИД_Вложение" = id_attachment);
+RETURN COALESCE(weight,0);
+END
+$$;
+
+
+ALTER FUNCTION public.total_weight(id_attachment integer) OWNER TO postgres;
+
+--
+-- TOC entry 221 (class 1255 OID 16747)
+-- Name: update_type(integer, text, real, money, real, money, real, boolean, money, money); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION update_type(id integer, name text DEFAULT ''::text, max_weight real DEFAULT 0, std_tariff money DEFAULT (0)::money, std_weight real DEFAULT 0, add_tariff money DEFAULT (0)::money, add_weight real DEFAULT 0, value boolean DEFAULT false, cost_tariff money DEFAULT (0)::money, add_cost money DEFAULT (0)::money) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+START TRANSACTION;
+IF(std_weight > max_weight) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"СтандартВес" > "МаксВес"';
+	RETURN;
+END IF;
+IF(add_tariff >= max_weight) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"ДопВес" >= "МаксВес"';
+	RETURN;
+END IF;
+IF(value = true AND (cost_tariff = 0::money OR add_cost = 0::money)) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"Ценность" = True, "ЦенТариф" = 0 OR "ДопЦен" = 0 ';
+	RETURN;
+END IF;
+IF(value = false AND (cost_tariff > 0 OR add_cost > 0)) THEN
+	ROLLBACK;
+	RAISE EXCEPTION '"Ценность" = False, "ЦенТариф" > 0 OR "ДопЦен" > 0 ';
+	RETURN;
+END IF;
+UPDATE public."Тип_отправления"
+SET
+"Название" = name,
+"МаксВес" = max_weight,
+"СтандартТариф" = std_tariff,
+"СтандартВес" = std_weight,
+"ДопТариф" = add_tariff,
+"ДопВес" = add_weight,
+"Ценность" = value,
+"ЦенТариф" = cost_tariff,
+"ДопЦен" = add_cost
+WHERE "ИД_Тип" = id;
+COMMIT;
+END;
+$$;
+
+
+ALTER FUNCTION public.update_type(id integer, name text, max_weight real, std_tariff money, std_weight real, add_tariff money, add_weight real, value boolean, cost_tariff money, add_cost money) OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 186 (class 1259 OID 16401)
+-- Name: Адресат; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Адресат" (
+    "ИД_Адресат" integer NOT NULL,
+    "ФИО" text DEFAULT ''::text NOT NULL,
+    "Индекс" integer DEFAULT 0 NOT NULL,
+    "Город" text DEFAULT ''::text NOT NULL,
+    "Улица" text DEFAULT ''::text NOT NULL,
+    "Дом" text DEFAULT ''::text NOT NULL,
+    "Корпус" integer,
+    "Квартира" integer DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE "Адресат" OWNER TO postgres;
+
+--
+-- TOC entry 188 (class 1259 OID 16418)
+-- Name: Вложение; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Вложение" (
+    "ИД_Вложение" integer NOT NULL,
+    "ИД_Адресат" integer NOT NULL,
+    "Общий_Вес" real DEFAULT 0 NOT NULL,
+    "Общая_Ценность" money DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE "Вложение" OWNER TO postgres;
+
+--
+-- TOC entry 194 (class 1259 OID 16539)
+-- Name: Почтовое_отправление; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Почтовое_отправление" (
+    "ИД_Отправление" integer NOT NULL,
+    "ИД_Адресат" integer NOT NULL,
+    "ИД_Тип" integer NOT NULL,
+    "ИД_Вложение" integer,
+    "Вес" real DEFAULT 0 NOT NULL,
+    "Стоимость" money DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE "Почтовое_отправление" OWNER TO postgres;
+
+--
+-- TOC entry 192 (class 1259 OID 16502)
+-- Name: Тип_отправления; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Тип_отправления" (
+    "ИД_Тип" integer NOT NULL,
+    "Название" text DEFAULT ''::text NOT NULL,
+    "МаксВес" real DEFAULT 0 NOT NULL,
+    "СтандартТариф" money DEFAULT 0 NOT NULL,
+    "СтандартВес" real DEFAULT 0 NOT NULL,
+    "ДопТариф" money DEFAULT 0 NOT NULL,
+    "ДопВес" real DEFAULT 0 NOT NULL,
+    "Ценность" boolean DEFAULT false NOT NULL,
+    "ЦенТариф" money DEFAULT 0 NOT NULL,
+    "ДопЦен" money DEFAULT 0 NOT NULL,
+    CONSTRAINT "check_ДопВес" CHECK (("ДопВес" <= "МаксВес")),
+    CONSTRAINT "check_ДопЦен" CHECK ((("Ценность" = true) OR ("ДопЦен" = (0)::money))),
+    CONSTRAINT "check_СтандартВес" CHECK (("СтандартВес" <= "МаксВес")),
+    CONSTRAINT "check_ЦенТариф" CHECK ((("Ценность" = true) OR ("ЦенТариф" = (0)::money)))
+);
+
+
+ALTER TABLE "Тип_отправления" OWNER TO postgres;
+
+--
+-- TOC entry 196 (class 1259 OID 16749)
+-- Name: po_view; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW po_view AS
+ SELECT "Почтовое_отправление"."ИД_Отправление",
+    "Адресат"."ФИО",
+    "Адресат"."Индекс",
+    "Тип_отправления"."Название",
+    "Тип_отправления"."Ценность",
+    "Почтовое_отправление"."Вес",
+    "Вложение"."Общая_Ценность",
+    "Почтовое_отправление"."Стоимость"
+   FROM ((("Почтовое_отправление"
+     JOIN "Адресат" USING ("ИД_Адресат"))
+     LEFT JOIN "Вложение" USING ("ИД_Вложение"))
+     JOIN "Тип_отправления" USING ("ИД_Тип"));
+
+
+ALTER TABLE po_view OWNER TO postgres;
+
+--
+-- TOC entry 185 (class 1259 OID 16399)
+-- Name: Адресат_ИД_Адресат_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "Адресат_ИД_Адресат_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "Адресат_ИД_Адресат_seq" OWNER TO postgres;
+
+--
+-- TOC entry 2244 (class 0 OID 0)
+-- Dependencies: 185
+-- Name: Адресат_ИД_Адресат_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "Адресат_ИД_Адресат_seq" OWNED BY "Адресат"."ИД_Адресат";
+
+
+--
+-- TOC entry 187 (class 1259 OID 16416)
+-- Name: Вложение_ИД_Вложение_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "Вложение_ИД_Вложение_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "Вложение_ИД_Вложение_seq" OWNER TO postgres;
+
+--
+-- TOC entry 2245 (class 0 OID 0)
+-- Dependencies: 187
+-- Name: Вложение_ИД_Вложение_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "Вложение_ИД_Вложение_seq" OWNED BY "Вложение"."ИД_Вложение";
+
+
+--
+-- TOC entry 195 (class 1259 OID 16577)
+-- Name: Почтовое_отделение; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Почтовое_отделение" (
+    "Индекс" integer NOT NULL,
+    "ИД_Отправление" integer NOT NULL
+);
+
+
+ALTER TABLE "Почтовое_отделение" OWNER TO postgres;
+
+--
+-- TOC entry 193 (class 1259 OID 16537)
+-- Name: Почтовое_отправл_ИД_Отправление_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "Почтовое_отправл_ИД_Отправление_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "Почтовое_отправл_ИД_Отправление_seq" OWNER TO postgres;
+
+--
+-- TOC entry 2246 (class 0 OID 0)
+-- Dependencies: 193
+-- Name: Почтовое_отправл_ИД_Отправление_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "Почтовое_отправл_ИД_Отправление_seq" OWNED BY "Почтовое_отправление"."ИД_Отправление";
+
+
+--
+-- TOC entry 190 (class 1259 OID 16460)
+-- Name: Предмет; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE "Предмет" (
+    "ИД_Предмет" integer NOT NULL,
+    "ИД_Вложение" integer NOT NULL,
+    "Название" text DEFAULT ''::text NOT NULL,
+    "Количество" integer DEFAULT 1 NOT NULL,
+    "Ценность" money DEFAULT 0 NOT NULL,
+    "Вес" real DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE "Предмет" OWNER TO postgres;
+
+--
+-- TOC entry 189 (class 1259 OID 16458)
+-- Name: Предмет_ИД_Предмет_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "Предмет_ИД_Предмет_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "Предмет_ИД_Предмет_seq" OWNER TO postgres;
+
+--
+-- TOC entry 2247 (class 0 OID 0)
+-- Dependencies: 189
+-- Name: Предмет_ИД_Предмет_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "Предмет_ИД_Предмет_seq" OWNED BY "Предмет"."ИД_Предмет";
+
+
+--
+-- TOC entry 191 (class 1259 OID 16500)
+-- Name: Тип_отправления_ИД_Тип_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE "Тип_отправления_ИД_Тип_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE "Тип_отправления_ИД_Тип_seq" OWNER TO postgres;
+
+--
+-- TOC entry 2248 (class 0 OID 0)
+-- Dependencies: 191
+-- Name: Тип_отправления_ИД_Тип_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE "Тип_отправления_ИД_Тип_seq" OWNED BY "Тип_отправления"."ИД_Тип";
+
+
+--
+-- TOC entry 2049 (class 2604 OID 16404)
+-- Name: Адресат ИД_Адресат; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Адресат" ALTER COLUMN "ИД_Адресат" SET DEFAULT nextval('"Адресат_ИД_Адресат_seq"'::regclass);
+
+
+--
+-- TOC entry 2056 (class 2604 OID 16421)
+-- Name: Вложение ИД_Вложение; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Вложение" ALTER COLUMN "ИД_Вложение" SET DEFAULT nextval('"Вложение_ИД_Вложение_seq"'::regclass);
+
+
+--
+-- TOC entry 2078 (class 2604 OID 16542)
+-- Name: Почтовое_отправление ИД_Отправление; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отправление" ALTER COLUMN "ИД_Отправление" SET DEFAULT nextval('"Почтовое_отправл_ИД_Отправление_seq"'::regclass);
+
+
+--
+-- TOC entry 2059 (class 2604 OID 16463)
+-- Name: Предмет ИД_Предмет; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Предмет" ALTER COLUMN "ИД_Предмет" SET DEFAULT nextval('"Предмет_ИД_Предмет_seq"'::regclass);
+
+
+--
+-- TOC entry 2064 (class 2604 OID 16505)
+-- Name: Тип_отправления ИД_Тип; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Тип_отправления" ALTER COLUMN "ИД_Тип" SET DEFAULT nextval('"Тип_отправления_ИД_Тип_seq"'::regclass);
+
+
+--
+-- TOC entry 2226 (class 0 OID 16401)
+-- Dependencies: 186
+-- Data for Name: Адресат; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Адресат" ("ИД_Адресат", "ФИО", "Индекс", "Город", "Улица", "Дом", "Корпус", "Квартира") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2249 (class 0 OID 0)
+-- Dependencies: 185
+-- Name: Адресат_ИД_Адресат_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"Адресат_ИД_Адресат_seq"', 5, true);
+
+
+--
+-- TOC entry 2228 (class 0 OID 16418)
+-- Dependencies: 188
+-- Data for Name: Вложение; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Вложение" ("ИД_Вложение", "ИД_Адресат", "Общий_Вес", "Общая_Ценность") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2250 (class 0 OID 0)
+-- Dependencies: 187
+-- Name: Вложение_ИД_Вложение_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"Вложение_ИД_Вложение_seq"', 15, true);
+
+
+--
+-- TOC entry 2235 (class 0 OID 16577)
+-- Dependencies: 195
+-- Data for Name: Почтовое_отделение; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Почтовое_отделение" ("Индекс", "ИД_Отправление") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2251 (class 0 OID 0)
+-- Dependencies: 193
+-- Name: Почтовое_отправл_ИД_Отправление_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"Почтовое_отправл_ИД_Отправление_seq"', 9, true);
+
+
+--
+-- TOC entry 2234 (class 0 OID 16539)
+-- Dependencies: 194
+-- Data for Name: Почтовое_отправление; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Почтовое_отправление" ("ИД_Отправление", "ИД_Адресат", "ИД_Тип", "ИД_Вложение", "Вес", "Стоимость") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2230 (class 0 OID 16460)
+-- Dependencies: 190
+-- Data for Name: Предмет; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Предмет" ("ИД_Предмет", "ИД_Вложение", "Название", "Количество", "Ценность", "Вес") FROM stdin;
+\.
+
+
+--
+-- TOC entry 2252 (class 0 OID 0)
+-- Dependencies: 189
+-- Name: Предмет_ИД_Предмет_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"Предмет_ИД_Предмет_seq"', 5, true);
+
+
+--
+-- TOC entry 2232 (class 0 OID 16502)
+-- Dependencies: 192
+-- Data for Name: Тип_отправления; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY "Тип_отправления" ("ИД_Тип", "Название", "МаксВес", "СтандартТариф", "СтандартВес", "ДопТариф", "ДопВес", "Ценность", "ЦенТариф", "ДопЦен") FROM stdin;
+1	Letter	100	22,42 ?	20	2,95 ?	20	f	0,00 ?	0,00 ?
+2	Insured letter	100	106,20 ?	20	2,95 ?	20	t	0,04 ?	1,00 ?
+3	Wrapper	2000	43,66 ?	100	2,95 ?	20	f	0,00 ?	0,00 ?
+4	Insured wrapper	2000	82,60 ?	500	82,60 ?	500	t	0,04 ?	1,00 ?
+5	Package	10000	150,00 ?	500	16,00 ?	500	f	0,00 ?	0,00 ?
+6	Insured package	10000	150,00 ?	500	16,00 ?	500	t	4,00 ?	100,00 ?
+\.
+
+
+--
+-- TOC entry 2253 (class 0 OID 0)
+-- Dependencies: 191
+-- Name: Тип_отправления_ИД_Тип_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('"Тип_отправления_ИД_Тип_seq"', 1, true);
+
+
+--
+-- TOC entry 2082 (class 2606 OID 16415)
+-- Name: Адресат pk_Адресат; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Адресат"
+    ADD CONSTRAINT "pk_Адресат" PRIMARY KEY ("ИД_Адресат");
+
+
+--
+-- TOC entry 2084 (class 2606 OID 16425)
+-- Name: Вложение pk_Вложение; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Вложение"
+    ADD CONSTRAINT "pk_Вложение" PRIMARY KEY ("ИД_Вложение");
+
+
+--
+-- TOC entry 2093 (class 2606 OID 16581)
+-- Name: Почтовое_отделение pk_Почтовое_отделение; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отделение"
+    ADD CONSTRAINT "pk_Почтовое_отделение" PRIMARY KEY ("Индекс");
+
+
+--
+-- TOC entry 2091 (class 2606 OID 16546)
+-- Name: Почтовое_отправление pk_Почтовое_отправление; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отправление"
+    ADD CONSTRAINT "pk_Почтовое_отправление" PRIMARY KEY ("ИД_Отправление");
+
+
+--
+-- TOC entry 2086 (class 2606 OID 16472)
+-- Name: Предмет pk_Предмет; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Предмет"
+    ADD CONSTRAINT "pk_Предмет" PRIMARY KEY ("ИД_Предмет");
+
+
+--
+-- TOC entry 2088 (class 2606 OID 16523)
+-- Name: Тип_отправления pk_Тип_отправления; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Тип_отправления"
+    ADD CONSTRAINT "pk_Тип_отправления" PRIMARY KEY ("ИД_Тип");
+
+
+--
+-- TOC entry 2089 (class 1259 OID 16614)
+-- Name: indexMail; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX "indexMail" ON "Почтовое_отправление" USING btree ("ИД_Вложение" NULLS FIRST) WHERE ("ИД_Вложение" IS NOT NULL);
+
+
+--
+-- TOC entry 2103 (class 2620 OID 16607)
+-- Name: Предмет after_delete; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER after_delete AFTER DELETE ON "Предмет" FOR EACH ROW EXECUTE PROCEDURE item_delete();
+
+
+--
+-- TOC entry 2101 (class 2620 OID 16605)
+-- Name: Вложение after_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER after_insert AFTER INSERT ON "Вложение" FOR EACH ROW EXECUTE PROCEDURE attachment_insert();
+
+
+--
+-- TOC entry 2105 (class 2620 OID 16611)
+-- Name: Предмет after_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER after_insert AFTER INSERT ON "Предмет" FOR EACH ROW EXECUTE PROCEDURE item_insert();
+
+
+--
+-- TOC entry 2104 (class 2620 OID 16609)
+-- Name: Предмет after_update; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER after_update AFTER UPDATE ON "Предмет" FOR EACH ROW EXECUTE PROCEDURE item_update();
+
+
+--
+-- TOC entry 2102 (class 2620 OID 16620)
+-- Name: Вложение after_update; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER after_update AFTER UPDATE ON "Вложение" FOR EACH ROW EXECUTE PROCEDURE attachment_update();
+
+
+--
+-- TOC entry 2100 (class 2620 OID 16598)
+-- Name: Адресат before_delete; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER before_delete BEFORE DELETE ON "Адресат" FOR EACH ROW EXECUTE PROCEDURE addressee_delete();
+
+
+--
+-- TOC entry 2106 (class 2620 OID 16658)
+-- Name: Почтовое_отправление before_insert_update; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER before_insert_update BEFORE INSERT OR UPDATE ON "Почтовое_отправление" FOR EACH ROW EXECUTE PROCEDURE mail_trigger();
+
+
+--
+-- TOC entry 2094 (class 2606 OID 16478)
+-- Name: Вложение fk_Вложение_Адресат; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Вложение"
+    ADD CONSTRAINT "fk_Вложение_Адресат" FOREIGN KEY ("ИД_Адресат") REFERENCES "Адресат"("ИД_Адресат") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 2099 (class 2606 OID 16582)
+-- Name: Почтовое_отделение fk_Отделение_Отправление; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отделение"
+    ADD CONSTRAINT "fk_Отделение_Отправление" FOREIGN KEY ("ИД_Отправление") REFERENCES "Почтовое_отправление"("ИД_Отправление") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 2097 (class 2606 OID 16631)
+-- Name: Почтовое_отправление fk_Отправление_Адресат; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отправление"
+    ADD CONSTRAINT "fk_Отправление_Адресат" FOREIGN KEY ("ИД_Адресат") REFERENCES "Адресат"("ИД_Адресат") ON UPDATE CASCADE;
+
+
+--
+-- TOC entry 2098 (class 2606 OID 16659)
+-- Name: Почтовое_отправление fk_Отправление_Вложение; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отправление"
+    ADD CONSTRAINT "fk_Отправление_Вложение" FOREIGN KEY ("ИД_Вложение") REFERENCES "Вложение"("ИД_Вложение") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 2096 (class 2606 OID 16572)
+-- Name: Почтовое_отправление fk_Отправление_Тип_отправления; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Почтовое_отправление"
+    ADD CONSTRAINT "fk_Отправление_Тип_отправления" FOREIGN KEY ("ИД_Тип") REFERENCES "Тип_отправления"("ИД_Тип") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- TOC entry 2095 (class 2606 OID 16473)
+-- Name: Предмет fk_Предмет_Вложение; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY "Предмет"
+    ADD CONSTRAINT "fk_Предмет_Вложение" FOREIGN KEY ("ИД_Вложение") REFERENCES "Вложение"("ИД_Вложение") ON DELETE CASCADE;
+
+
+--
+-- TOC entry 2242 (class 0 OID 0)
+-- Dependencies: 3
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2017-07-28 21:48:19
+
+--
+-- PostgreSQL database dump complete
+--
+

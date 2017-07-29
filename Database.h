@@ -3,9 +3,9 @@
 
 #include <QSqlDatabase>
 
-#define DRIVER          "QODBC3"
-#define DRIVER_NAME     "SQL Server"
-#define SERVER_NAME     "NAMAT-UB"
+#define DRIVER          "QPSQL"
+#define HOST_NAME       "localhost"
+#define PORT            5432
 #define DATABASE_NAME   "post_office"
 
 
