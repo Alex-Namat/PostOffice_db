@@ -5,8 +5,9 @@
 #include <QSqlDatabase>
 #include <QSqlTableModel>
 #include <QSqlRelationalTableModel>
-#include "Database.h"
 #include "SqlTypeModel.h"
+
+#define DRIVER  "QPSQL"
 
 namespace Ui {
 class MainWindow;
@@ -20,18 +21,17 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+protected:
     void setAddresseeModel();
     void setItemModel();
     void setAttachmentModel();
     void setMailModel();
     void setTypeModel();
     void setOfficeModel();
-
-protected:
     bool connect_db();
     void updateRelation(QSqlRelationalTableModel *model);
 
-private slots:
+public slots:
     void on_addButton_clicked();
 
     void on_deleteButton_clicked();

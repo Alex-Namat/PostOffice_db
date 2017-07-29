@@ -3,7 +3,7 @@
 
 #include <QDialog>
 #include <QSettings>
-#include <QMap>
+#include "simplecrypt.h"
 
 namespace Ui {
 class AuthorizationDialog;
@@ -31,6 +31,7 @@ public slots:
 private:
     Ui::AuthorizationDialog *ui;
     QSettings settings;
+    SimpleCrypt crypt;
 };
 
 #endif // AUTHORIZATIONDIALOG_H

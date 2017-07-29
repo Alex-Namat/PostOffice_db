@@ -14,19 +14,21 @@ TEMPLATE = app
 CONFIG += c++11
 
 SOURCES += main.cpp \
-		mainwindow.cpp \
-        authorizationdialog.cpp \
-        idAttachmentDelegat.cpp \
-        NoEditColumnDelegate.cpp \
-        SqlTypeModel.cpp
+    mainwindow.cpp \
+    authorizationdialog.cpp \
+    idAttachmentDelegat.cpp \
+    NoEditColumnDelegate.cpp \
+    SqlTypeModel.cpp \
+    simplecrypt.cpp
 
 HEADERS  += \
-        mainwindow.h \
-        authorizationdialog.h \
-        SqlTypeModel.h \
-        idAttachmentDelegat.h \
-        NoEditColumnDelegate.h
+    mainwindow.h \
+    authorizationdialog.h \
+    SqlTypeModel.h \
+    idAttachmentDelegat.h \
+    NoEditColumnDelegate.h \
+    simplecrypt.h
 
 FORMS    += \
-        mainwindow.ui \
-        authorizationdialog.ui
+    mainwindow.ui \
+    authorizationdialog.ui

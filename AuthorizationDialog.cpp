@@ -4,7 +4,8 @@
 AuthorizationDialog::AuthorizationDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::AuthorizationDialog),
-    settings("Namat","PostOffice_db")
+    settings("Namat","PostOffice_db"),
+    crypt(Q_UINT64_C(0x19be90ac42c639b3db7e))
 {
     ui->setupUi(this);
     connect(ui->pushButton,SIGNAL(clicked(bool)),this,SLOT(clickedOk()));
@@ -12,7 +13,12 @@ AuthorizationDialog::AuthorizationDialog(QWidget *parent) :
     ui->hostEdit->setText(settings.value("Connection/host").toString());
     ui->portEdit->setText(settings.value("Connection/port").toString());
     ui->userEdit->setText(settings.value("Connection/user").toString());
-    ui->passwordEdit->setText(settings.value("Connection/password").toString());
+    ui->passwordEdit->setText(crypt.decryptToString(
+                                  settings.value("Connection/password").toString()
+                                  ));
+    if(settings.value("check").toBool()){
+        ui->checkBox->setChecked(true);
+    }
 }
 void AuthorizationDialog::clickedOk(){
     settings.setValue("Connection/database_name",ui->nameEdit->text());
@@ -20,8 +26,15 @@ void AuthorizationDialog::clickedOk(){
     settings.setValue("Connection/port",ui->portEdit->text());
     settings.setValue("Connection/user",ui->userEdit->text());
     if(ui->checkBox->isChecked()){
-        settings.setValue("Connection/password",ui->passwordEdit->text());
+        settings.setValue("Connection/password",crypt.encryptToString(
+                              ui->passwordEdit->text()
+                              ));
     }
+    else
+    {
+       settings.setValue("Connection/password","");
+    }
+    settings.setValue("check",ui->checkBox->isChecked());
     emit accept();
 }
 
