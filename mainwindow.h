@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QSqlDatabase>
 #include <QSqlTableModel>
 #include <QSqlRelationalTableModel>
 #include "Database.h"
@@ -27,6 +28,7 @@ public:
     void setOfficeModel();
 
 protected:
+    bool connect_db();
     void updateRelation(QSqlRelationalTableModel *model);
 
 private slots:
@@ -48,7 +50,7 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-    Database *db;
+    QSqlDatabase db;
     QSqlTableModel *addresseeModel;
     QSqlRelationalTableModel *itemModel, *attachmentModel, *mailModel, *officeModel;
     SqlTypeModel *typeModel;

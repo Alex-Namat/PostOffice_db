@@ -16,7 +16,6 @@ CONFIG += c++11
 SOURCES += main.cpp \
 		mainwindow.cpp \
         authorizationdialog.cpp \
-        database.cpp \
         idAttachmentDelegat.cpp \
         NoEditColumnDelegate.cpp \
         SqlTypeModel.cpp
@@ -24,7 +23,6 @@ SOURCES += main.cpp \
 HEADERS  += \
         mainwindow.h \
         authorizationdialog.h \
-        database.h \
         SqlTypeModel.h \
         idAttachmentDelegat.h \
         NoEditColumnDelegate.h
