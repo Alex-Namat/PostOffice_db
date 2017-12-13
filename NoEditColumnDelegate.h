@@ -6,7 +6,7 @@
 class NoEditColumnDelegate : public QStyledItemDelegate
 {
 public:
-    NoEditColumnDelegate(QObject* parent = 0);
+    explicit NoEditColumnDelegate(QObject* parent = 0);
     QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 };
 

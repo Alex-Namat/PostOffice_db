@@ -4,19 +4,19 @@
 #include <QSqlRelationalDelegate>
 #include "IdAttachmentDelegat.h"
 #include "NoEditColumnDelegate.h"
-#include <QDebug>
+#include "AuthorizationDialog.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    db(new Database)
+    db(QSqlDatabase::addDatabase(DRIVER))
 {
     ui->setupUi(this);
-    if(db->connect()){
-        ui->statusBar->showMessage(db->userName());
+    if(connect_db()){
+        ui->statusBar->showMessage(db.userName());
     }
     else
-        ui->statusBar->showMessage(db->lastError().databaseText());
+        ui->statusBar->showMessage(db.lastError().text());
 
     setAddresseeModel();
     setItemModel();
@@ -30,7 +30,6 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     delete ui;
-    delete db;
     delete addresseeModel;
     delete itemModel;
     delete attachmentModel;
@@ -41,7 +40,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::setAddresseeModel()
 {
-   addresseeModel = new QSqlTableModel(this,*db);
+   addresseeModel = new QSqlTableModel(this,db);
    addresseeModel->setTable("\"Адресат\"");
    addresseeModel->setEditStrategy(QSqlTableModel::OnRowChange);
    addresseeModel->select();
@@ -56,7 +55,7 @@ void MainWindow::setAddresseeModel()
 
 void MainWindow::setItemModel()
 {
-    itemModel = new QSqlRelationalTableModel(this,*db);
+    itemModel = new QSqlRelationalTableModel(this,db);
     itemModel->setTable("\"Предмет\"");
     itemModel->setRelation(1,QSqlRelation("\"Вложение\"","\"ИД_Вложение\"","\"ИД_Вложение\""));
     itemModel->setEditStrategy(QSqlTableModel::OnRowChange);
@@ -73,7 +72,7 @@ void MainWindow::setItemModel()
 
 void MainWindow::setAttachmentModel()
 {
-    attachmentModel = new QSqlRelationalTableModel(this,*db);
+    attachmentModel = new QSqlRelationalTableModel(this,db);
     attachmentModel->setTable("\"Вложение\"");
     attachmentModel->setRelation(1,QSqlRelation("\"Адресат\"","\"ИД_Адресат\"","\"ИД_Адресат\""));
     attachmentModel->setEditStrategy(QSqlTableModel::OnRowChange);
@@ -90,7 +89,7 @@ void MainWindow::setAttachmentModel()
 
 void MainWindow::setMailModel()
 {
-    mailModel = new QSqlRelationalTableModel(this,*db);
+    mailModel = new QSqlRelationalTableModel(this,db);
     mailModel->setTable("\"Почтовое_отправление\"");
     mailModel->setRelation(1,QSqlRelation("\"Адресат\"","\"ИД_Адресат\"","\"ИД_Адресат\""));
     mailModel->setRelation(2,QSqlRelation("\"Тип_отправления\"","\"ИД_Тип\"","\"Название\""));
@@ -111,7 +110,7 @@ void MainWindow::setMailModel()
 
 void MainWindow::setTypeModel()
 {
-    typeModel = new SqlTypeModel(this,*db);
+    typeModel = new SqlTypeModel(this,db);
     typeModel->setTable("\"Тип_отправления\"");
     typeModel->setEditStrategy(QSqlTableModel::OnRowChange);
     typeModel->select();
@@ -126,7 +125,7 @@ void MainWindow::setTypeModel()
 
 void MainWindow::setOfficeModel()
 {
-    officeModel = new QSqlRelationalTableModel(this,*db);
+    officeModel = new QSqlRelationalTableModel(this,db);
     officeModel->setTable("\"Почтовое_отделение\"");
     officeModel->setRelation(1,QSqlRelation("\"Почтовое_отправление\"","\"ИД_Отправление\"","\"ИД_Отправление\""));
     officeModel->setEditStrategy(QSqlTableModel::OnRowChange);
@@ -138,6 +137,25 @@ void MainWindow::setOfficeModel()
     ui->officeView->setEditTriggers(QAbstractItemView::DoubleClicked);
     ui->officeView->verticalHeader()->setVisible(false);
     ui->officeView->resizeColumnsToContents();
+}
+
+bool MainWindow::connect_db()
+{
+    AuthorizationDialog *authorizationDlg = new AuthorizationDialog();
+    if(authorizationDlg->exec() == QDialog::Accepted){
+        db.setDatabaseName(authorizationDlg->getDatabaseName());
+        db.setHostName(authorizationDlg->getHost());
+        db.setPort(authorizationDlg->getPort());
+        db.setUserName(authorizationDlg->getUser());
+        db.setPassword(authorizationDlg->getPassword());
+    }
+    delete authorizationDlg;
+
+    if(db.open()){
+        return true;
+    }
+    else
+        return false;
 }
 
 void MainWindow::updateRelation(QSqlRelationalTableModel *model)
@@ -177,7 +195,6 @@ void MainWindow::on_addButton_clicked()
         return;
     }
     model->insertRow(model->rowCount());
-    qDebug() << db->lastError();
 }
 
 void MainWindow::on_deleteButton_clicked()
@@ -227,12 +244,11 @@ void MainWindow::on_deleteButton_clicked()
     auto select = view->selectionModel();
     if(select->hasSelection()){
         auto listSelect = select->selectedRows();
-        for(size_t i = 0; i < listSelect.size(); ++i){
+        for(auto i = 0; i < listSelect.size(); ++i){
             model->removeRow(listSelect[0].row());
         }
         model->submitAll();
     }
-    qDebug() << db->lastError();
 }
 
 void MainWindow::on_updateButton_clicked()
@@ -255,16 +271,15 @@ void MainWindow::on_updateButton_clicked()
     mailModel->select();
     typeModel->select();
     officeModel->select();
-    qDebug() << db->lastError();
 }
 
 void MainWindow::on_connectionButton_clicked()
 {
-    db->close();
-    if(db->connect()){
-        ui->statusBar->showMessage(db->userName());}
+    db.close();
+    if(connect_db()){
+        ui->statusBar->showMessage(db.userName());}
     else
-        ui->statusBar->showMessage(db->lastError().text());
+        ui->statusBar->showMessage(db.lastError().text());
 
     delete addresseeModel;
     delete itemModel;
@@ -299,7 +314,7 @@ void MainWindow::on_caseButton_clicked()
                     "INNER JOIN public.\"Адресат\" AS a ON a.\"ИД_Адресат\" = p.\"ИД_Адресат\"");
     QTableView *view = new QTableView;
     view->setModel(model);
-    view->verticalHeader()->setVisible(false);
+    //view->verticalHeader()->setVisible(false);
     view->show();
 }
 
